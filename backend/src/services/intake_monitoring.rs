@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::config::Config;
-use crate::domain::intake::{IntakeUsage, compute_intake_usage};
+use crate::domain::intake::{compute_intake_usage, IntakeUsage};
 use crate::error::AppResult;
 use crate::repositories::{admissions, institutions};
 use crate::services::validation::tallies_from_counts;
@@ -66,6 +66,7 @@ pub async fn monitor(
 }
 
 /// Intake usage for a single programme and year.
+#[allow(clippy::too_many_arguments)]
 pub async fn usage_for(
     pool: &PgPool,
     config: &Config,

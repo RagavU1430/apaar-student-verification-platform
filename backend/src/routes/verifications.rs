@@ -5,11 +5,11 @@ use uuid::Uuid;
 
 use crate::auth::policy::AuthenticatedUser;
 use crate::domain::verification::{
-    DisclosedField, VerificationOutcome, VerificationResult, default_limitations, policy_for,
+    default_limitations, policy_for, DisclosedField, VerificationOutcome,
 };
 use crate::error::{AppError, AppResult};
-use crate::integrations::SimulatedAcademicIdentityVerifier;
 use crate::integrations::AcademicIdentityVerifier;
+use crate::integrations::SimulatedAcademicIdentityVerifier;
 use crate::repositories::{admissions, institutions, students};
 use crate::services::audit;
 use crate::state::AppState;
@@ -83,7 +83,9 @@ pub async fn verify(
     let mut fields: Vec<DisclosedField> = Vec::new();
     let outcome = match institution_id {
         Some(institution_id) => {
-            match students::find_institution_student(&state.pool, record_ref, institution_id).await? {
+            match students::find_institution_student(&state.pool, record_ref, institution_id)
+                .await?
+            {
                 Some(identity_id) => {
                     let (rows, _) = admissions::search(
                         &state.pool,
@@ -95,9 +97,9 @@ pub async fn verify(
                     .await?;
                     let _ = identity_id;
 
-                    let match_row = rows
-                        .iter()
-                        .find(|r| r.institution_student_id == record_ref || r.apaar_id_last4 == record_ref);
+                    let match_row = rows.iter().find(|r| {
+                        r.institution_student_id == record_ref || r.apaar_id_last4 == record_ref
+                    });
 
                     match match_row {
                         Some(row) => {
@@ -129,6 +131,7 @@ pub async fn verify(
     };
 
     let institutions_seen = institutions::list_visible(&state.pool, user.scope_filter()).await?;
+    let _ = institutions_seen.len();
 
     sqlx::query(
         "INSERT INTO verification_requests
@@ -144,7 +147,7 @@ pub async fn verify(
     .bind(&external.source)
     .execute(&state.pool)
     .await
-    .map_err(|e| AppError::internal(e))?;
+    .map_err(AppError::internal)?;
 
     audit::record(
         &state.pool,

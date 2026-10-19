@@ -62,13 +62,18 @@ pub async fn institution_dashboard(
     State(state): State<AppState>,
     user: AuthenticatedUser,
 ) -> AppResult<Json<InstitutionDashboard>> {
-    let institution_id = user
-        .institution_id
-        .ok_or_else(|| AppError::forbidden("This dashboard requires an institution-scoped account."))?;
+    let institution_id = user.institution_id.ok_or_else(|| {
+        AppError::forbidden("This dashboard requires an institution-scoped account.")
+    })?;
 
     let institution = crate::repositories::institutions::get(&state.pool, institution_id).await?;
-    let rows = batches::list(&state.pool, crate::auth::policy::ScopeFilter::Institution(institution_id)).await?;
-    let usages = intake_monitoring::monitor(&state.pool, &state.config, Some(institution_id)).await?;
+    let rows = batches::list(
+        &state.pool,
+        crate::auth::policy::ScopeFilter::Institution(institution_id),
+    )
+    .await?;
+    let usages =
+        intake_monitoring::monitor(&state.pool, &state.config, Some(institution_id)).await?;
     let open = issues::list_open(
         &state.pool,
         crate::auth::policy::ScopeFilter::Institution(institution_id),
@@ -85,7 +90,8 @@ pub async fn institution_dashboard(
         duplicate_candidates: rows.iter().map(|r| r.duplicate_count).sum::<i32>() as i64,
     };
 
-    let intakes = crate::repositories::institutions::list_intakes(&state.pool, institution_id).await?;
+    let intakes =
+        crate::repositories::institutions::list_intakes(&state.pool, institution_id).await?;
     let source_by_programme: Vec<(String, String, String)> = intakes
         .iter()
         .map(|i| {

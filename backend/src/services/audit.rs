@@ -17,7 +17,7 @@ pub async fn record(
     institution_id: Option<Uuid>,
     outcome: &str,
     correlation_id: Option<&str>,
-    summary: Option<&str>,
+    summary: Option<String>,
 ) -> AppResult<()> {
     sqlx::query(
         "INSERT INTO audit_events
@@ -37,7 +37,7 @@ pub async fn record(
     .bind(summary)
     .execute(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(())
 }
 
@@ -61,7 +61,7 @@ pub async fn record_denied(
         target_institution,
         "DENIED",
         None,
-        Some(summary),
+        Some(summary.to_string()),
     )
     .await
 }

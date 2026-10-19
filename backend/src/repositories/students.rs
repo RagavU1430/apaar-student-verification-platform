@@ -19,7 +19,7 @@ pub async fn active_apaar_ids_for_institution(
     .bind(institution_id)
     .fetch_all(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(rows.into_iter().collect())
 }
 
@@ -37,7 +37,7 @@ pub async fn active_apaar_ids_global(pool: &PgPool) -> AppResult<HashSet<String>
     )
     .fetch_all(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(rows.into_iter().collect())
 }
 
@@ -54,7 +54,7 @@ pub async fn upsert_student(pool: &PgPool, apaar_id: &str, last4: &str) -> AppRe
     .bind(last4)
     .fetch_one(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(id)
 }
 
@@ -81,7 +81,7 @@ pub async fn upsert_institution_student(
     .bind(full_name)
     .fetch_one(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(id)
 }
 
@@ -101,6 +101,6 @@ pub async fn find_institution_student(
     .bind(institution_id)
     .fetch_optional(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(id)
 }

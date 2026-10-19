@@ -56,7 +56,7 @@ pub async fn insert(
     .bind(rule_version)
     .fetch_one(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(id)
 }
 
@@ -70,15 +70,11 @@ pub async fn list_for_batch(pool: &PgPool, batch_id: Uuid) -> AppResult<Vec<Issu
     .bind(batch_id)
     .fetch_all(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
 /// Open issues in the caller's scope, most severe first.
-pub async fn list_open(
-    pool: &PgPool,
-    scope: ScopeFilter,
-    limit: i64,
-) -> AppResult<Vec<IssueRow>> {
+pub async fn list_open(pool: &PgPool, scope: ScopeFilter, limit: i64) -> AppResult<Vec<IssueRow>> {
     let rows = match scope {
         ScopeFilter::All => {
             sqlx::query_as::<_, IssueRow>(
@@ -108,7 +104,7 @@ pub async fn list_open(
             .await
         }
     };
-    rows.map_err(|e| crate::error::AppError::internal(e))
+    rows.map_err(crate::error::AppError::internal)
 }
 
 pub async fn get(pool: &PgPool, id: Uuid) -> AppResult<Option<IssueRow>> {
@@ -120,7 +116,7 @@ pub async fn get(pool: &PgPool, id: Uuid) -> AppResult<Option<IssueRow>> {
     .bind(id)
     .fetch_optional(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
 /// Records a review outcome. The original finding is never deleted.
@@ -142,12 +138,15 @@ pub async fn resolve(
     .bind(resolved_by)
     .execute(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(())
 }
 
 /// Counts of open issues per rule code, used by the AICTE dashboard.
-pub async fn open_counts_by_rule(pool: &PgPool, scope: ScopeFilter) -> AppResult<Vec<(String, i64)>> {
+pub async fn open_counts_by_rule(
+    pool: &PgPool,
+    scope: ScopeFilter,
+) -> AppResult<Vec<(String, i64)>> {
     let rows = match scope {
         ScopeFilter::All => {
             sqlx::query_as::<_, (String, i64)>(
@@ -167,5 +166,5 @@ pub async fn open_counts_by_rule(pool: &PgPool, scope: ScopeFilter) -> AppResult
             .await
         }
     };
-    rows.map_err(|e| crate::error::AppError::internal(e))
+    rows.map_err(crate::error::AppError::internal)
 }

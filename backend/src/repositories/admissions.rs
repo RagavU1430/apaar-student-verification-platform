@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 use crate::auth::policy::ScopeFilter;
 use crate::error::AppResult;
-use crate::repositories::scope_clause;
 
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct AdmissionView {
@@ -63,7 +62,7 @@ pub async fn insert(
     .bind(source_batch_id)
     .fetch_one(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(id)
 }
 
@@ -88,7 +87,7 @@ pub async fn has_active_admission(
     .bind(academic_year)
     .fetch_one(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(exists)
 }
 
@@ -97,7 +96,7 @@ pub async fn active_tallies(
     pool: &PgPool,
     institution_id: Option<Uuid>,
 ) -> AppResult<Vec<(Uuid, String, String, i64)>> {
-    let rows: Vec<(Uuid, String, String, i64)> = match institution_id {
+    let rows = match institution_id {
         Some(id) => {
             sqlx::query_as(
                 "SELECT programme_id, academic_year, seat_category, count(*)
@@ -120,7 +119,7 @@ pub async fn active_tallies(
             .await
         }
     };
-    rows.map_err(|e| crate::error::AppError::internal(e))
+    rows.map_err(crate::error::AppError::internal)
 }
 
 /// Searches admissions within the caller's scope.
@@ -139,7 +138,7 @@ pub async fn search(
 
     let scope_predicate = match scope {
         ScopeFilter::All => String::new(),
-        ScopeFilter::Institution(id) => {
+        ScopeFilter::Institution(_id) => {
             arg_index += 1;
             format!(" AND a.institution_id = ${}", arg_index - 1)
         }
@@ -204,14 +203,14 @@ pub async fn search(
     let total = count_query
         .fetch_one(pool)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))?;
+        .map_err(crate::error::AppError::internal)?;
 
     let rows = list_query
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))?;
+        .map_err(crate::error::AppError::internal)?;
 
     Ok((rows, total))
 }

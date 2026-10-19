@@ -121,9 +121,7 @@ impl AppError {
             AppError::Conflict(m) => (ErrorCode::Conflict, m.clone()),
             AppError::PayloadTooLarge(m) => (ErrorCode::PayloadTooLarge, m.clone()),
             AppError::Row { code, message } => {
-                (ErrorCode::UnprocessableRow, message.clone())
-                    .0
-                    .pipe(|_| (ErrorCode::UnprocessableRow, format!("{code}: {message}"))),
+                (ErrorCode::UnprocessableRow, format!("{code}: {message}"))
             }
             AppError::Internal(_) => (
                 ErrorCode::Internal,
@@ -150,22 +148,13 @@ impl IntoResponse for AppError {
     }
 }
 
-/// Tiny helper so the `Row` variant can compose its message without a
-/// duplicated match arm.
-trait Pipe: Sized {
-    fn pipe<T>(self, f: impl FnOnce(Self) -> T) -> T {
-        f(self)
-    }
-}
-impl<T> Pipe for T {}
-
 #[derive(Serialize)]
 pub struct ErrorEnvelope {
     pub error: ErrorBody,
 }
 
 #[derive(Serialize)]
-pub ErrorBody {
+pub struct ErrorBody {
     pub code: String,
     pub message: String,
     pub details: Value,

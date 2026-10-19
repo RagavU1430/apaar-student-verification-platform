@@ -221,7 +221,7 @@ pub fn validate_row(row: &CandidateRow, ctx: &ValidationContext) -> Vec<Validati
             Severity::Error,
             "APAAR id does not match the expected shape. This is a format check only, not identity verification.",
             Some("apaar_id"),
-            Some("level 2 format check (demo rule)"),
+            Some("level 2 format check (demo rule)".to_string()),
             rv,
         ));
     }
@@ -239,7 +239,13 @@ pub fn validate_row(row: &CandidateRow, ctx: &ValidationContext) -> Vec<Validati
     }
 
     // --- Name (warning only; personal data is minimised) ---------------
-    if row.full_name.as_deref().map(str::trim).unwrap_or("").is_empty() {
+    if row
+        .full_name
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("")
+        .is_empty()
+    {
         findings.push(ValidationFinding::new(
             RuleCode::FullNameMissing,
             Severity::Warning,
@@ -374,7 +380,10 @@ pub fn validate_row(row: &CandidateRow, ctx: &ValidationContext) -> Vec<Validati
                 Severity::Duplicate,
                 "The same APAAR id appears more than once in this batch. A reviewer must decide which row is correct.",
                 Some("apaar_id"),
-                Some(format!("rows {}", rows.join(", "))),
+                Some(format!(
+                    "rows {}",
+                    rows.iter().map(|r| r.to_string()).collect::<Vec<_>>().join(", ")
+                )),
                 rv,
             ));
         }
@@ -384,7 +393,7 @@ pub fn validate_row(row: &CandidateRow, ctx: &ValidationContext) -> Vec<Validati
                 Severity::Review,
                 "This APAAR id already has an active admission in this institution.",
                 Some("apaar_id"),
-                Some("existing active admission"),
+                Some("existing active admission".to_string()),
                 rv,
             ));
         } else if ctx.global_active_apaar_ids.contains(&normalised) {
@@ -393,7 +402,7 @@ pub fn validate_row(row: &CandidateRow, ctx: &ValidationContext) -> Vec<Validati
                 Severity::Review,
                 "This APAAR id is linked to an active admission at another institution. This is a review flag, not a fraud verdict.",
                 Some("apaar_id"),
-                Some("active admission at another institution"),
+                Some("active admission at another institution".to_string()),
                 rv,
             ));
         }
@@ -490,7 +499,8 @@ mod tests {
     #[test]
     fn cross_institution_conflict_is_a_review_flag() {
         let mut c = ctx();
-        c.global_active_apaar_ids.insert("APAAR-2026-0001".to_string());
+        c.global_active_apaar_ids
+            .insert("APAAR-2026-0001".to_string());
         let findings = validate_row(&row(), &c);
         assert_eq!(status_for(&findings), ValidationStatus::NeedsReview);
         let f = findings

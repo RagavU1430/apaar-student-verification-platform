@@ -4,15 +4,17 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::config::Config;
-use crate::domain::admission::{AdmissionRecord, AdmissionStatus, SeatCategory, normalise_apaar_id};
+use crate::domain::admission::{
+    normalise_apaar_id, AdmissionRecord, AdmissionStatus, SeatCategory,
+};
 use crate::domain::intake::CategoryTally;
 use crate::domain::validation::{
-    CandidateRow, Severity, ValidationContext, ValidationFinding, ValidationStatus, status_for,
-    validate_row,
+    status_for, validate_row, CandidateRow, Severity, ValidationContext, ValidationFinding,
+    ValidationStatus,
 };
 use crate::error::AppResult;
-use crate::repositories::{admissions, institutions, students};
 use crate::repositories::batches::BatchCounts;
+use crate::repositories::{admissions, institutions, students};
 use crate::services::duplicate_detection::in_batch_duplicates;
 use regex::Regex;
 
@@ -52,7 +54,8 @@ pub async fn validate_rows(
     let configured_years: HashSet<String> =
         intakes.iter().map(|i| i.academic_year.clone()).collect();
 
-    let institution_apaar_ids = students::active_apaar_ids_for_institution(pool, institution_id).await?;
+    let institution_apaar_ids =
+        students::active_apaar_ids_for_institution(pool, institution_id).await?;
     let global_active_apaar_ids = students::active_apaar_ids_global(pool).await?;
     let duplicates = in_batch_duplicates(rows);
 
@@ -81,7 +84,9 @@ pub async fn validate_rows(
 
         let findings = validate_row(row, &ctx);
         let status = status_for(&findings);
-        let programme_id = programme_ids.get(&row.programme_code.trim().to_ascii_uppercase()).copied();
+        let programme_id = programme_ids
+            .get(&row.programme_code.trim().to_ascii_uppercase())
+            .copied();
 
         let candidate = if status == ValidationStatus::Rejected {
             None
@@ -121,11 +126,9 @@ pub async fn validate_rows(
 ///
 /// This is demo configuration, not an official AICTE admission schedule.
 fn admission_period(year: &str) -> (NaiveDate, NaiveDate) {
-    let start_year: i32 = year
-        .get(0..4)
-        .and_then(|y| y.parse().ok())
-        .unwrap_or(2026);
-    let start = NaiveDate::from_ymd_opt(start_year, 6, 1).unwrap_or(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap());
+    let start_year: i32 = year.get(0..4).and_then(|y| y.parse().ok()).unwrap_or(2026);
+    let start = NaiveDate::from_ymd_opt(start_year, 6, 1)
+        .unwrap_or(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap());
     let end = NaiveDate::from_ymd_opt(start_year + 1, 9, 30)
         .unwrap_or(NaiveDate::from_ymd_opt(2027, 9, 30).unwrap());
     (start, end)
@@ -140,7 +143,14 @@ fn build_candidate(row: &CandidateRow) -> Option<AdmissionRecord> {
     let date = NaiveDate::parse_from_str(row.admission_date.trim(), "%Y-%m-%d").ok()?;
     let status = AdmissionStatus::parse(&row.admission_status)?;
     let seat_category = SeatCategory::parse(&row.seat_category)?;
-    let last4: String = apaar_id.chars().rev().take(4).collect::<String>().chars().rev().collect();
+    let last4: String = apaar_id
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
 
     Some(AdmissionRecord {
         apaar_id,

@@ -104,9 +104,9 @@ pub async fn create_batch(
         return Err(AppError::forbidden("Your role cannot upload batches."));
     }
 
-    let institution_id = user
-        .institution_id
-        .ok_or_else(|| AppError::forbidden("This action requires an institution-scoped account."))?;
+    let institution_id = user.institution_id.ok_or_else(|| {
+        AppError::forbidden("This action requires an institution-scoped account.")
+    })?;
 
     let mut file_name = "upload.csv".to_string();
     let mut file_bytes: Vec<u8> = Vec::new();
@@ -175,7 +175,8 @@ pub async fn create_batch(
     let rows = ingestion::parse_csv(&file_bytes, state.config.max_batch_rows)?;
     let hash = ingestion::file_hash(&file_bytes);
 
-    let validation = validation::validate_rows(&state.pool, institution_id, &rows, &state.config).await?;
+    let validation =
+        validation::validate_rows(&state.pool, institution_id, &rows, &state.config).await?;
 
     let batch_id = batches::create(
         &state.pool,
@@ -399,7 +400,8 @@ pub async fn commit_batch(
     .await?;
 
     // Recompute intake and raise an exception when the capacity is exceeded.
-    let usages = intake_monitoring::monitor(&state.pool, &state.config, Some(row.institution_id)).await?;
+    let usages =
+        intake_monitoring::monitor(&state.pool, &state.config, Some(row.institution_id)).await?;
     let mut exceptions = Vec::new();
     for usage in usages {
         if usage.over_capacity || usage.supernumerary_over_capacity {

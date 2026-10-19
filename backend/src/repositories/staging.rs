@@ -56,7 +56,7 @@ pub async fn insert(
     .bind(row_status)
     .execute(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(())
 }
 
@@ -69,7 +69,7 @@ pub async fn list_for_batch(pool: &PgPool, batch_id: Uuid) -> AppResult<Vec<Stag
     .bind(batch_id)
     .fetch_all(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
 pub async fn delete_for_batch(pool: &PgPool, batch_id: Uuid) -> AppResult<()> {
@@ -77,6 +77,6 @@ pub async fn delete_for_batch(pool: &PgPool, batch_id: Uuid) -> AppResult<()> {
         .bind(batch_id)
         .execute(pool)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))?;
+        .map_err(crate::error::AppError::internal)?;
     Ok(())
 }

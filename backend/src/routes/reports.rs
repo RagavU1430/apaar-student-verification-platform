@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::policy::AuthenticatedUser;
 use crate::error::{AppError, AppResult};
-use crate::repositories::{admissions, issues};
+use crate::repositories::admissions;
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -63,9 +63,10 @@ pub async fn enrolment_report(
             row.academic_year.clone(),
             row.seat_category.clone(),
         );
-        match grouped.iter_mut().find(|g| {
-            (g.0.clone(), g.1.clone(), g.2.clone(), g.3.clone()) == key
-        }) {
+        match grouped
+            .iter_mut()
+            .find(|g| (g.0.clone(), g.1.clone(), g.2.clone(), g.3.clone()) == key)
+        {
             Some(entry) => entry.4 += 1,
             None => grouped.push((key.0, key.1, key.2, key.3, 1)),
         }
@@ -73,16 +74,16 @@ pub async fn enrolment_report(
 
     let items: Vec<EnrolmentRow> = grouped
         .into_iter()
-        .map(|(institution_id, programme_code, academic_year, seat_category, count)| {
-            EnrolmentRow {
+        .map(
+            |(institution_id, programme_code, academic_year, seat_category, count)| EnrolmentRow {
                 institution_id,
                 programme_code,
                 academic_year,
                 seat_category,
                 status: "ACTIVE".to_string(),
                 count,
-            }
-        })
+            },
+        )
         .collect();
 
     if query.format.as_deref() == Some("csv") {
@@ -109,7 +110,8 @@ pub async fn enrolment_report(
                 ),
             ],
             csv,
-        ));
+        )
+            .into_response());
     }
 
     Ok(Json(serde_json::json!({
@@ -117,7 +119,8 @@ pub async fn enrolment_report(
         "rows_returned": items.len(),
         "rule_version": state.config.demo_rule_version,
         "items": items,
-    })))
+    }))
+    .into_response())
 }
 
 /// The audit trail, readable by regulators and auditors.
@@ -135,6 +138,20 @@ pub struct AuditEventView {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(sqlx::FromRow)]
+struct AuditRow {
+    id: uuid::Uuid,
+    actor_id: Option<uuid::Uuid>,
+    actor_role: Option<String>,
+    action: String,
+    entity_type: String,
+    entity_id: Option<uuid::Uuid>,
+    institution_id: Option<uuid::Uuid>,
+    outcome: String,
+    summary: Option<String>,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
 pub async fn audit_log(
     State(state): State<AppState>,
     user: AuthenticatedUser,
@@ -145,54 +162,29 @@ pub async fn audit_log(
         ));
     }
 
-    let rows: Vec<AuditEventView> = sqlx::query_as::<_, (
-        uuid::Uuid,
-        Option<uuid::Uuid>,
-        Option<String>,
-        String,
-        String,
-        Option<uuid::Uuid>,
-        Option<uuid::Uuid>,
-        String,
-        Option<String>,
-        chrono::DateTime<chrono::Utc>,
-    )>(
+    let rows: Vec<AuditRow> = sqlx::query_as::<_, AuditRow>(
         "SELECT id, actor_id, actor_role, action, entity_type, entity_id, institution_id,
                 outcome, summary, created_at
          FROM audit_events ORDER BY created_at DESC LIMIT 200",
     )
     .fetch_all(&state.pool)
     .await
-    .map_err(|e| AppError::internal(e))?
-    .into_iter()
-    .map(
-        |(
-            id,
-            actor_id,
-            actor_role,
-            action,
-            entity_type,
-            entity_id,
-            institution_id,
-            outcome,
-            summary,
-            created_at,
-        )| AuditEventView {
-            id: id.to_string(),
-            actor_id: actor_id.map(|a| a.to_string()),
-            actor_role,
-            action,
-            entity_type,
-            entity_id: entity_id.map(|e| e.to_string()),
-            institution_id: institution_id.map(|i| i.to_string()),
-            outcome,
-            summary,
-            created_at,
-        },
-    )
-    .collect();
+    .map_err(AppError::internal)?;
 
-    let _ = issues::open_counts_by_rule;
-
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| AuditEventView {
+                id: row.id.to_string(),
+                actor_id: row.actor_id.map(|a| a.to_string()),
+                actor_role: row.actor_role,
+                action: row.action,
+                entity_type: row.entity_type,
+                entity_id: row.entity_id.map(|e| e.to_string()),
+                institution_id: row.institution_id.map(|i| i.to_string()),
+                outcome: row.outcome,
+                summary: row.summary,
+                created_at: row.created_at,
+            })
+            .collect(),
+    ))
 }

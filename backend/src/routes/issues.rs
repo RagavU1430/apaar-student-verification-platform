@@ -116,7 +116,9 @@ pub async fn resolve_issue(
         ));
     }
     if request.note.trim().is_empty() {
-        return Err(AppError::bad_request("A reason is required to close an issue."));
+        return Err(AppError::bad_request(
+            "A reason is required to close an issue.",
+        ));
     }
 
     issues::resolve(&state.pool, id, &status, request.note.trim(), user.id).await?;

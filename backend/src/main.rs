@@ -29,6 +29,11 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("./migrations").run(&pool).await?;
     tracing::info!("migrations applied");
 
+    let addr: SocketAddr = config
+        .bind_addr
+        .parse()
+        .unwrap_or_else(|_| SocketAddr::from(([127, 0, 0, 1], 8080)));
+
     let state = AppState {
         pool,
         config: Arc::new(config),
@@ -37,12 +42,6 @@ async fn main() -> anyhow::Result<()> {
     let app = routes::router(state)
         .layer(RequestBodyLimitLayer::new(6 * 1024 * 1024))
         .layer(TraceLayer::new_for_http());
-
-    let addr: SocketAddr = app
-        .state::<AppState>()
-        .map(|s| s.config.bind_addr.clone())
-        .unwrap_or_else(|| "127.0.0.1:8080".to_string())
-        .parse()?;
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "listening");

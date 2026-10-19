@@ -45,16 +45,14 @@ pub async fn list_visible(pool: &PgPool, scope: ScopeFilter) -> AppResult<Vec<In
             .fetch_all(pool)
             .await
         }
-        ScopeFilter::Institution(id) => {
-            sqlx::query_as::<_, Institution>(
-                "SELECT id, official_code, name, status FROM institutions WHERE id = $1 ORDER BY name",
-            )
-            .bind(id)
-            .fetch_all(pool)
-            .await
-        }
+        ScopeFilter::Institution(id) => sqlx::query_as::<_, Institution>(
+            "SELECT id, official_code, name, status FROM institutions WHERE id = $1 ORDER BY name",
+        )
+        .bind(id)
+        .fetch_all(pool)
+        .await,
     };
-    rows.map_err(|e| crate::error::AppError::internal(e))
+    rows.map_err(crate::error::AppError::internal)
 }
 
 pub async fn get(pool: &PgPool, id: Uuid) -> AppResult<Option<Institution>> {
@@ -64,7 +62,7 @@ pub async fn get(pool: &PgPool, id: Uuid) -> AppResult<Option<Institution>> {
     .bind(id)
     .fetch_optional(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
 pub async fn list_programmes(pool: &PgPool, institution_id: Uuid) -> AppResult<Vec<Programme>> {
@@ -75,7 +73,7 @@ pub async fn list_programmes(pool: &PgPool, institution_id: Uuid) -> AppResult<V
     .bind(institution_id)
     .fetch_all(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
 /// Approved intakes for one institution, joined with the programme code.
@@ -109,7 +107,7 @@ pub async fn list_intakes(
     .bind(institution_id)
     .fetch_all(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
 /// Approved intakes across every institution (used by the AICTE dashboard).
@@ -124,11 +122,12 @@ pub async fn list_intakes_all(pool: &PgPool) -> AppResult<Vec<IntakeWithProgramm
     )
     .fetch_all(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
 #[derive(Clone, Debug, sqlx::FromRow)]
-pub struct IntakeRuleRow {    pub seat_category: String,
+pub struct IntakeRuleRow {
+    pub seat_category: String,
     pub counts_toward_regular: bool,
     pub uses_supernumerary_pool: bool,
     pub notes: Option<String>,
@@ -143,7 +142,7 @@ pub async fn intake_rules(pool: &PgPool, rule_version: &str) -> AppResult<Vec<Se
     .bind(rule_version)
     .fetch_all(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
 
     Ok(rows
         .into_iter()

@@ -17,7 +17,9 @@ pub enum VerificationOutcome {
 impl VerificationOutcome {
     pub fn as_str(&self) -> &'static str {
         match self {
-            VerificationOutcome::VerifiedAgainstPlatformRecords => "VERIFIED_AGAINST_PLATFORM_RECORDS",
+            VerificationOutcome::VerifiedAgainstPlatformRecords => {
+                "VERIFIED_AGAINST_PLATFORM_RECORDS"
+            }
             VerificationOutcome::NeedsReview => "NEEDS_REVIEW",
             VerificationOutcome::NotFound => "NOT_FOUND",
         }
@@ -59,11 +61,21 @@ pub const PURPOSES: &[PurposePolicy] = &[
     },
     PurposePolicy {
         purpose: "ADMISSIONS_TRANSFER",
-        allowed_fields: &["record_status", "academic_year", "programme_code", "admission_status"],
+        allowed_fields: &[
+            "record_status",
+            "academic_year",
+            "programme_code",
+            "admission_status",
+        ],
     },
     PurposePolicy {
         purpose: "AUDIT_CHECK",
-        allowed_fields: &["record_status", "academic_year", "programme_code", "admission_status"],
+        allowed_fields: &[
+            "record_status",
+            "academic_year",
+            "programme_code",
+            "admission_status",
+        ],
     },
 ];
 
@@ -99,6 +111,8 @@ mod tests {
     fn simulated_source_is_always_disclosed() {
         let limits = default_limitations(true);
         assert!(limits.iter().any(|l| l.contains("SIMULATED")));
-        assert!(!default_limitations(false).iter().any(|l| l.contains("SIMULATED")));
+        assert!(!default_limitations(false)
+            .iter()
+            .any(|l| l.contains("SIMULATED")));
     }
 }

@@ -22,7 +22,7 @@ pub async fn find_by_login(pool: &PgPool, login: &str) -> AppResult<Option<UserR
     .bind(login)
     .fetch_optional(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(row)
 }
 
@@ -33,12 +33,12 @@ pub async fn list(pool: &PgPool) -> AppResult<Vec<UserRow>> {
     )
     .fetch_all(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
 pub async fn count(pool: &PgPool) -> AppResult<i64> {
     sqlx::query_scalar::<_, i64>("SELECT count(*) FROM users")
         .fetch_one(pool)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))
+        .map_err(crate::error::AppError::internal)
 }

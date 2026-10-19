@@ -1,0 +1,721 @@
+openapi: 3.0.3
+info:
+  title: AICTE APAAR Student Data & Verification Platform
+  version: 0.1.0
+  description: |
+    Prototype REST contract for the AICTE APAAR student data platform.
+
+    **Scope note.** This is a prototype contract derived from the PRD. It does not describe an
+    official AICTE service. There is no live APAAR integration: the only external verification
+    adapter is simulated and every response says so. Intake counting uses a versioned demo rule,
+    never a hard-coded formula.
+  license:
+    name: Internal prototype
+servers:
+  - url: http://127.0.0.1:8080/api/v1
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: auth
+  - name: institutions
+  - name: batches
+  - name: admissions
+  - name: issues
+  - name: dashboards
+  - name: verification
+  - name: reports
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Sign in and obtain an access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login_identifier, password]
+              properties:
+                login_identifier: { type: string, example: alpha.admin }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me:
+    get:
+      tags: [auth]
+      summary: Current identity, role and institution scope
+      responses:
+        "200":
+          description: The authenticated caller
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /institutions:
+    get:
+      tags: [institutions]
+      summary: Institutions visible to the caller
+      responses:
+        "200":
+          description: Scoped list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Institution" }
+
+  /institutions/{id}/intakes:
+    get:
+      tags: [institutions]
+      summary: Approved intake configuration for one institution
+      parameters:
+        - $ref: "#/components/parameters/InstitutionId"
+      responses:
+        "200":
+          description: Intake configuration
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Intake" }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /institutions/{id}/programmes:
+    get:
+      tags: [institutions]
+      summary: Programmes of one institution
+      parameters:
+        - $ref: "#/components/parameters/InstitutionId"
+      responses:
+        "200":
+          description: Programme catalogue
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Programme" }
+
+  /template:
+    get:
+      tags: [batches]
+      summary: Download the versioned CSV template
+      security: []
+      responses:
+        "200":
+          description: CSV template
+          content:
+            text/csv:
+              schema: { type: string }
+
+  /batches:
+    get:
+      tags: [batches]
+      summary: List the batches visible to the caller
+      responses:
+        "200":
+          description: Batch summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Batch" }
+    post:
+      tags: [batches]
+      summary: Upload a CSV batch and validate every row
+      description: |
+        File level problems fail the whole request. Row level problems are reported per row;
+        no row is silently discarded. The institution scope comes from the token only.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                idempotency_key:
+                  type: string
+                  description: Reusing a key returns the original batch instead of creating a second one.
+      responses:
+        "201":
+          description: Batch created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Batch" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: File larger than the configured limit
+        "422":
+          description: File level row error (missing column, row limit exceeded)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /batches/{id}:
+    get:
+      tags: [batches]
+      summary: Batch status and aggregate results
+      parameters:
+        - $ref: "#/components/parameters/BatchId"
+      responses:
+        "200":
+          description: Batch summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Batch" }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /batches/{id}/issues:
+    get:
+      tags: [batches]
+      summary: Row-level validation issues
+      parameters:
+        - $ref: "#/components/parameters/BatchId"
+      responses:
+        "200":
+          description: Findings
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ValidationIssue" }
+
+  /batches/{id}/commit:
+    post:
+      tags: [batches]
+      summary: Commit the accepted rows of a batch
+      description: |
+        Runs in a single transaction: either every accepted row is persisted or none is.
+        Intake usage is recomputed afterwards and a capacity exception is raised when exceeded.
+      parameters:
+        - $ref: "#/components/parameters/BatchId"
+      responses:
+        "200":
+          description: Commit result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommitResult" }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: The batch was already committed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /admissions:
+    get:
+      tags: [admissions]
+      summary: Search admissions inside the caller's scope
+      parameters:
+        - { name: programme_code, in: query, schema: { type: string } }
+        - { name: academic_year, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: seat_category, in: query, schema: { type: string } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        "200":
+          description: Paged records (APAAR ids are masked)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdmissionPage" }
+
+  /issues:
+    get:
+      tags: [issues]
+      summary: Open issues in the caller's scope, most severe first
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
+      responses:
+        "200":
+          description: Open issues
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ValidationIssue" }
+
+  /issues/{id}/resolve:
+    post:
+      tags: [issues]
+      summary: Resolve or dismiss an issue with a reason
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, note]
+              properties:
+                status: { type: string, enum: [RESOLVED, DISMISSED] }
+                note: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Updated issue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationIssue" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /dashboard/institution:
+    get:
+      tags: [dashboards]
+      summary: Institution metrics
+      responses:
+        "200":
+          description: Institution dashboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionDashboard" }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /dashboard/aicte:
+    get:
+      tags: [dashboards]
+      summary: Cross-institution aggregates and the review queue
+      responses:
+        "200":
+          description: AICTE dashboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AicteDashboard" }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /verifications:
+    post:
+      tags: [verification]
+      summary: Purpose-limited record verification
+      description: |
+        Only the fields allowed for the declared purpose are returned. The external adapter is
+        simulated and the response always states the source and its limitations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose, record_ref]
+              properties:
+                purpose:
+                  type: string
+                  enum: [EMPLOYMENT_CHECK, ADMISSIONS_TRANSFER, AUDIT_CHECK]
+                record_ref: { type: string }
+                institution_id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerificationResult" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /reports/enrolment:
+    get:
+      tags: [reports]
+      summary: Enrolment report, optionally as CSV
+      parameters:
+        - { name: institution_id, in: query, schema: { type: string, format: uuid } }
+        - { name: academic_year, in: query, schema: { type: string } }
+        - { name: programme_code, in: query, schema: { type: string } }
+        - { name: format, in: query, schema: { type: string, enum: [json, csv] } }
+      responses:
+        "200":
+          description: Report
+          content:
+            application/json:
+              schema: { type: object }
+            text/csv:
+              schema: { type: string }
+
+  /audit:
+    get:
+      tags: [reports]
+      summary: Audit trail (regulator and reviewer roles)
+      responses:
+        "200":
+          description: Recent audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditEvent" }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    InstitutionId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    BatchId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Forbidden:
+      description: Authenticated but not permitted
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    NotFound:
+      description: Not found, or not disclosed under the caller's scope
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - INVALID_REQUEST
+                - AUTHENTICATION_FAILED
+                - TOKEN_EXPIRED
+                - PERMISSION_DENIED
+                - NOT_FOUND
+                - CONFLICT
+                - PAYLOAD_TOO_LARGE
+                - UNPROCESSABLE_ROW
+                - RATE_LIMITED
+                - INTERNAL_ERROR
+            message: { type: string }
+            details: { type: object, nullable: true }
+
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        display_name: { type: string }
+        role:
+          type: string
+          enum: [INSTITUTION_ADMIN, INSTITUTION_DATA_OPERATOR, AICTE_ADMIN, AUTHORIZED_VERIFIER, AUDITOR]
+        institution_id: { type: string, format: uuid, nullable: true }
+        institution_name: { type: string, nullable: true }
+        permissions:
+          type: array
+          items: { type: string }
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, example: Bearer }
+        expires_in: { type: integer }
+        user: { $ref: "#/components/schemas/UserProfile" }
+
+    Institution:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        official_code: { type: string }
+        name: { type: string }
+        status: { type: string }
+
+    Programme:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        level: { type: string }
+        status: { type: string }
+
+    Intake:
+      type: object
+      properties:
+        programme_id: { type: string, format: uuid }
+        programme_code: { type: string }
+        programme_name: { type: string }
+        academic_year: { type: string, example: 2026-27 }
+        regular_intake: { type: integer }
+        supernumerary_capacity: { type: integer }
+        source_reference: { type: string, description: "DEMO-SEED-v1 in the prototype" }
+        rule_version: { type: string }
+        effective_version: { type: integer }
+
+    Batch:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        institution_id: { type: string, format: uuid }
+        file_name: { type: string }
+        schema_version: { type: string }
+        status: { type: string, enum: [VALIDATED, COMMITTED] }
+        counts:
+          type: object
+          properties:
+            rows: { type: integer }
+            accepted: { type: integer }
+            accepted_with_warning: { type: integer }
+            needs_review: { type: integer }
+            duplicates: { type: integer }
+            rejected: { type: integer }
+        submitted_at: { type: string, format: date-time }
+        committed_at: { type: string, format: date-time, nullable: true }
+        rule_version: { type: string }
+        external_verification:
+          type: string
+          description: Always states that no live external verification was performed.
+
+    ValidationIssue:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        batch_id: { type: string, format: uuid }
+        institution_id: { type: string, format: uuid }
+        row_reference: { type: string, example: "row 4" }
+        rule_code:
+          type: string
+          enum:
+            - APAAR_ID_MISSING
+            - APAAR_ID_FORMAT_INVALID
+            - STUDENT_ID_MISSING
+            - FULL_NAME_MISSING
+            - PROGRAMME_CODE_MISSING
+            - PROGRAMME_UNKNOWN
+            - ACADEMIC_YEAR_MISSING
+            - ACADEMIC_YEAR_INVALID
+            - ACADEMIC_YEAR_NOT_CONFIGURED
+            - ADMISSION_DATE_MISSING
+            - ADMISSION_DATE_INVALID
+            - ADMISSION_DATE_OUTSIDE_PERIOD
+            - SEAT_CATEGORY_UNKNOWN
+            - ADMISSION_STATUS_INVALID
+            - DUPLICATE_APAAR_IN_BATCH
+            - CROSS_INSTITUTION_ACTIVE_CONFLICT
+            - DUPLICATE_ACTIVE_ADMISSION
+            - INTAKE_CAPACITY_EXCEEDED
+            - MISSING_COLUMN
+            - ROW_LIMIT_EXCEEDED
+        severity: { type: string, enum: [ERROR, REVIEW, DUPLICATE, WARNING] }
+        message: { type: string }
+        field: { type: string, nullable: true }
+        evidence: { type: string, nullable: true }
+        rule_version: { type: string }
+        status: { type: string, enum: [OPEN, RESOLVED, DISMISSED] }
+        resolution_note: { type: string, nullable: true }
+        resolved_at: { type: string, format: date-time, nullable: true }
+
+    CommitResult:
+      type: object
+      properties:
+        batch_id: { type: string, format: uuid }
+        status: { type: string }
+        committed: { type: integer }
+        skipped: { type: integer }
+        intake_exceptions:
+          type: array
+          items:
+            type: object
+            properties:
+              programme_code: { type: string }
+              academic_year: { type: string }
+              rule_version: { type: string }
+              message: { type: string }
+              regular_count: { type: integer }
+              regular_intake: { type: integer }
+              excess: { type: integer }
+
+    IntakeCard:
+      type: object
+      properties:
+        programme_code: { type: string }
+        programme_name: { type: string, nullable: true }
+        academic_year: { type: string }
+        rule_version: { type: string }
+        regular_count: { type: integer }
+        regular_intake: { type: integer }
+        supernumerary_count: { type: integer }
+        supernumerary_capacity: { type: integer }
+        utilisation: { type: number, nullable: true }
+        over_capacity: { type: boolean }
+        source_reference: { type: string, nullable: true }
+
+    InstitutionDashboard:
+      type: object
+      properties:
+        institution_id: { type: string, format: uuid }
+        institution_name: { type: string, nullable: true }
+        rule_version: { type: string }
+        data_source: { type: string }
+        batches:
+          type: array
+          items: { $ref: "#/components/schemas/Batch" }
+        intake:
+          type: array
+          items: { $ref: "#/components/schemas/IntakeCard" }
+        open_issues: { type: integer }
+        counts:
+          type: object
+          properties:
+            total_batches: { type: integer }
+            total_rows: { type: integer }
+            accepted_rows: { type: integer }
+            rejected_rows: { type: integer }
+            rows_needing_review: { type: integer }
+            duplicate_candidates: { type: integer }
+
+    AicteDashboard:
+      type: object
+      properties:
+        rule_version: { type: string }
+        data_source: { type: string }
+        institutions:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              official_code: { type: string }
+              active_admissions: { type: integer }
+        intake:
+          type: array
+          items: { $ref: "#/components/schemas/IntakeCard" }
+        exception_queue:
+          type: array
+          items:
+            type: object
+            properties:
+              issue_id: { type: string, format: uuid }
+              institution_id: { type: string, format: uuid }
+              row_reference: { type: string }
+              rule_code: { type: string }
+              message: { type: string }
+              evidence: { type: string, nullable: true }
+              rule_version: { type: string }
+              severity: { type: string }
+        counts:
+          type: object
+          properties:
+            total_batches: { type: integer }
+            total_rows: { type: integer }
+            accepted_rows: { type: integer }
+            rejected_rows: { type: integer }
+            rows_needing_review: { type: integer }
+            duplicate_candidates: { type: integer }
+
+    AdmissionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              institution_id: { type: string, format: uuid }
+              programme_code: { type: string }
+              academic_year: { type: string }
+              admission_date: { type: string, format: date }
+              status: { type: string }
+              seat_category: { type: string }
+              institution_student_id: { type: string }
+              full_name: { type: string, nullable: true }
+              apaar_id_masked: { type: string, example: "********0001" }
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+
+    VerificationResult:
+      type: object
+      properties:
+        outcome:
+          type: string
+          enum: [VERIFIED_AGAINST_PLATFORM_RECORDS, NEEDS_REVIEW, NOT_FOUND]
+        fields_disclosed:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              value: { type: string }
+        source:
+          type: string
+          example: simulated-apaar-adapter
+        verified_at: { type: string, format: date-time }
+        limitations:
+          type: array
+          items: { type: string }
+        simulated:
+          type: boolean
+          description: Always true in the prototype.
+
+    AuditEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        actor_id: { type: string, format: uuid, nullable: true }
+        actor_role: { type: string, nullable: true }
+        action: { type: string }
+        entity_type: { type: string }
+        entity_id: { type: string, nullable: true }
+        institution_id: { type: string, format: uuid, nullable: true }
+        outcome: { type: string, enum: [SUCCESS, DENIED] }
+        summary: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }

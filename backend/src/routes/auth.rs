@@ -55,7 +55,9 @@ pub async fn login(
     }
 
     let Some(role) = Role::parse(&row.role) else {
-        return Err(AppError::internal(anyhow::anyhow!("unknown role in database")));
+        return Err(AppError::internal(anyhow::anyhow!(
+            "unknown role in database"
+        )));
     };
 
     let user = AuthenticatedUser {

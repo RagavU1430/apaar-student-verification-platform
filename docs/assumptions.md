@@ -1,0 +1,26 @@
+# Assumptions register
+
+These are the questions the PRD (section 18) left open. Each one is locked to a **labelled
+assumption** for the prototype. Nothing here is presented as confirmed fact.
+
+| ID | Open question | Assumption in the prototype | Where the label appears | Revisit trigger |
+| --- | --- | --- | --- | --- |
+| A-01 | What is the authoritative APAAR id format and live verification route? | The APAAR id is treated as **opaque**. Level 1 (presence) always applies. Level 2 is a configurable demo shape check (`^[A-Z0-9-]{8,20}$`) after trim + upper-case. No live verification. | Issue message: "This is a format check only, not identity verification." | An official format specification is published. |
+| A-02 | Is there an authorised API for verification? | No. `AcademicIdentityVerifier` is a trait with one implementation, `SimulatedAcademicIdentityVerifier`. It makes no network call and self-identifies. | Every verification response carries `source: "simulated-apaar-adapter"`, `simulated: true`, and an explicit limitation line. | An approved endpoint, credentials, permitted fields and rate limits exist. |
+| A-03 | What is the official source of approved intake? | None. Capacity comes from seeded fixtures with `source_reference = "DEMO-SEED-v1"`. | Intake cards show the source reference; the dashboard footer says the data is a demo fixture. | An official sanction letter or approval API is available. |
+| A-04 | What are the counting rules for regular, supernumerary, NRI, OCI and foreign-national categories? | Demo rule `demo-v1`: only `REGULAR` counts toward the regular capacity; `SUPERNUMERARY`, `NRI`, `OCI` and `FOREIGN_NATIONAL` consume the separately configured supernumerary pool. The mapping lives in `intake_rules` as data, not in code. | Every intake figure carries `rule_version`. | Official category rules are published for a given year. |
+| A-05 | Which student attributes are mandatory, optional, restricted or prohibited? | Minimum set only: APAAR id, institution student id, name, programme code, academic year, admission date, seat category, admission status. No date of birth, no document numbers, no photographs, no biometrics. | The CSV template defines the allowed columns. | A data-sharing policy is approved. |
+| A-06 | Who is the data controller and what is the retention policy? | **Undecided.** The prototype deletes staged rows on commit, never retains the uploaded file, and logs every disclosure. No automatic deletion policy is implemented, because the retention period is not ours to invent. | Footer note; the assumption is listed here. | A named controller and an approved retention schedule exist. |
+| A-07 | Which authentication/SSO service will institutions and AICTE use? | Prototype local accounts: argon2id password hash, HS256 JWT with a 1 hour expiry, no refresh rotation, no MFA. The token boundary is designed so an OIDC adapter can replace it. | `README` states this is prototype authentication, not OIDC. | A named identity provider is available. |
+| A-08 | What assurance level do external verifiers need? | Low assurance, purpose-limited. A verifier gets an outcome, a whitelisted field subset, the source and a timestamp. No bulk search, no export. The purposes are enumerated in code and in the OpenAPI contract. | Verification responses list the disclosed fields and the limitations. | An employer or verifier assurance requirement is defined. |
+| A-09 | What are the volume, concurrency, uptime and recovery targets? | Prototype caps: 5 MB per upload, 5,000 rows per batch, page size 50 (max 200), export capped at 500 rows. Best-effort availability. The demo target is 1,000 rows validated in under 10 seconds. | `.env.example` lists the limits. | Production service levels are agreed. |
+| A-10 | Which file formats do institutions actually use? | CSV only, UTF-8, strict headers, versioned template (`csv-v1`). XLSX is explicitly deferred. | The template download states the schema version. | Institution MIS formats are known. |
+| A-11 | Which reporting formats and export permissions are required? | CSV and JSON aggregates within the caller's scope, APAAR ids masked, exports audited and volume-capped. | The report response carries the rule version. | Mandatory reporting formats are confirmed. |
+| A-12 | What are the hosting, procurement, security review and accessibility requirements? | Managed PostgreSQL (Supabase) with TLS for the prototype; `docker-compose.yml` is provided so other developers can run a local Postgres. Production hosting is a gate, not a code task. | `README` describes both paths. | Procurement and a security review complete. |
+| A-13 | What accessibility and operational standards apply? | Keyboard-operable forms, labelled inputs, status shown as text plus icon plus colour, structured logs without student data, and `cargo fmt` / `clippy` / `test` in the build gate. | The UI never relies on colour alone. | A formal accessibility assessment happens. |
+
+## Still open before production
+
+Live APAAR integration - official intake rules and counting formulas - data controller and
+retention policy - named IdP/SSO - production hosting and security review - mandatory reporting
+formats - volume, concurrency and service-level targets - incident response and restore testing.

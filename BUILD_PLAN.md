@@ -71,10 +71,10 @@ production deployment, formal security certification. *(PRD §3.2 non-goals, §1
 
 | Concern | Decision | Note |
 | --- | --- | --- |
-| Language | **Rust, stable, `x86_64-pc-windows-gnu`** | Host has no MSVC toolchain; the GNU host target ships its own MinGW linker, needs no admin |
+| Language | **Rust, stable, `x86_64-pc-windows-gnu`** | Host has no MSVC toolchain; the GNU host target ships its own MinGW linker, needs no admin. **Extra requirement:** MinGW-w64 (`gcc` + `dlltool`) must be installed separately, and it must live on a path **without spaces** - MinGW's `ld.exe` cannot parse a spaced sysroot path. See `scripts/setup.ps1`. |
 | HTTP | axum 0.8 + tokio 1 + tower / tower-http | Typed extractors, thin handlers, CORS + trace + body-limit layers |
 | DB access | sqlx 0.8 (runtime queries, `postgres` feature) | `query!` macros are **not** used — no compile-time DB needed for `cargo check` |
-| Database | **PostgreSQL (managed, Supabase)** | TLS required; connection string from `DATABASE_URL` |
+| Database | **PostgreSQL (managed, Supabase)** | TLS required; connection string from `DATABASE_URL`. `docker-compose.yml` provides a local Postgres for developers who have Docker. |
 | Migrations | `sqlx migrate!` from `backend/migrations/` | Repeatable, version-controlled, applied on boot |
 | Serialization | serde + serde_json | Typed request/response structs at the API boundary |
 | Validation | Hand-written pure domain functions | Business rules must be unit-testable without a DB (PRD §21) |
@@ -328,14 +328,14 @@ in the demo and in the UI where relevant.
 
 ## 9. Build phases & exit criteria
 
-| Phase | Deliverable | Exit criteria |
-| --- | --- | --- |
-| **P0.1** Foundations | Repo scaffold, config, error contract, migrations, health endpoints, auth (seeded users) | `cargo check` + `cargo test` green; `/health/ready` returns DB status |
-| **P0.2** Ingestion & validation | CSV template, upload, batch lifecycle, row-level issues, domain rule unit tests | Seed CSV produces exactly the expected issue set; no row silently dropped |
-| **P0.3** Registry & intake | Commit transaction, duplicate detection, intake computation, exception creation | Counts derived from persisted data; transaction rollback leaves zero partial commits |
-| **P0.4** Authz & audit | Role/scope enforcement, negative tests, audit events on every mutation | Cross-institution access attempt returns 403 **and** writes an audit event |
-| **P0.5** Frontend | Sign-in, institution dashboard, upload wizard, batch detail, AICTE dashboard, issue review | Demo path walks the §10 script end to end |
-| **P0.6** Hardening & docs | README, OpenAPI, data dictionary, demo script, known limitations | `cargo fmt --check`, `cargo clippy`, `cargo test`, frontend build all clean |
+| Phase | Deliverable | Exit criteria | Scaffold status |
+| --- | --- | --- | --- |
+| **P0.1** Foundations | Repo scaffold, config, error contract, migrations, health endpoints, auth (seeded users) | `cargo check` + `cargo test` green; `/health/ready` returns DB status | **Done** - 27 unit tests green, migrations applied, `seed_users` binary included |
+| **P0.2** Ingestion & validation | CSV template, upload, batch lifecycle, row-level issues, domain rule unit tests | Seed CSV produces exactly the expected issue set; no row silently dropped | **Done** - template `csv-v1`, file/row-level error separation, `demo_batch.csv` covers 8 scenarios |
+| **P0.3** Registry & intake | Commit transaction, duplicate detection, intake computation, exception creation | Counts derived from persisted data; transaction rollback leaves zero partial commits | **Done** - transactional commit, in-batch + cross-institution duplicate flags, versioned counting rule |
+| **P0.4** Authz & audit | Role/scope enforcement, negative tests, audit events on every mutation | Cross-institution access attempt returns 403 **and** writes an audit event | **Done** - deny-by-default scope in `auth/policy.rs`, audit events on success and denial |
+| **P0.5** Frontend | Sign-in, institution dashboard, upload wizard, batch detail, AICTE dashboard, issue review | Demo path walks the §10 script end to end | **Done** - 6 screens, `tsc -b && vite build` clean |
+| **P0.6** Hardening & docs | README, OpenAPI, data dictionary, demo script, known limitations | `cargo fmt --check`, `cargo clippy`, `cargo test`, frontend build all clean | **Partial** - docs done, `fmt`/`clippy`/`test` clean; **rate limiting and background batch processing are not implemented** |
 
 ---
 

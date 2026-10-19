@@ -15,10 +15,10 @@ use crate::error::AppResult;
 ///
 /// This is the single place where "which institutions may this query touch" is
 /// decided, so that no route can accidentally query across institutions.
-pub fn scope_clause<'a>(
+pub fn scope_clause(
     scope: ScopeFilter,
     column: &str,
-    args: &'a mut Vec<sqlx::types::Uuid>,
+    args: &mut Vec<sqlx::types::Uuid>,
 ) -> String {
     match scope {
         ScopeFilter::All => String::new(),
@@ -34,6 +34,6 @@ pub async fn ping(pool: &PgPool) -> AppResult<()> {
     sqlx::query("SELECT 1")
         .execute(pool)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))?;
+        .map_err(crate::error::AppError::internal)?;
     Ok(())
 }

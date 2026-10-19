@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::auth::policy::AuthenticatedUser;
 use crate::error::{AppError, AppResult};
 use crate::repositories::institutions;
-use crate::state::AppState;
 use crate::services::audit;
+use crate::state::AppState;
 
 #[derive(Serialize)]
 pub struct InstitutionSummary {

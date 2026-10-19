@@ -28,6 +28,7 @@ argon2 = "0.5"
 password-hash = { version = "0.5", features = ["rand_core"] }
 jsonwebtoken = "9"
 csv = "1"
+regex = "1"
 thiserror = "2"
 anyhow = "1"
 tracing = "0.1"

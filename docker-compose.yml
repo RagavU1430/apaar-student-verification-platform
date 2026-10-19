@@ -1,0 +1,30 @@
+# Local PostgreSQL for development.
+#
+# The demo database used by the reviewer is managed (Supabase). This compose
+# file exists so anyone can reproduce the same schema locally without an
+# account.
+#
+#   docker compose up -d db
+#   DATABASE_URL=postgresql://apaar:apaar_dev_password@localhost:5432/apaar
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: aicte-apaar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: apaar
+      POSTGRES_PASSWORD: apaar_dev_password
+      POSTGRES_DB: apaar
+    ports:
+      - "5432:5432"
+    volumes:
+      - apaar-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apaar -d apaar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  apaar-db-data:

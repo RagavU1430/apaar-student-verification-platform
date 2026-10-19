@@ -69,6 +69,7 @@ pub struct CategoryCount {
 /// compare the categories that count towards regular seats against the
 /// configured regular intake, and report supernumerary capacity separately.
 /// This is a demo rule, not an official AICTE formula.
+#[allow(clippy::too_many_arguments)]
 pub fn compute_intake_usage(
     institution_id: &str,
     programme_id: &str,
@@ -168,8 +169,14 @@ mod tests {
         assert_eq!(usage.regular_count, 55);
         assert_eq!(usage.supernumerary_count, 7);
         assert_eq!(usage.active_count, 62);
-        assert!(!usage.over_capacity, "55 regular against 60 seats is not an exception");
-        assert!(usage.supernumerary_over_capacity, "7 supernumerary against 6 seats");
+        assert!(
+            !usage.over_capacity,
+            "55 regular against 60 seats is not an exception"
+        );
+        assert!(
+            usage.supernumerary_over_capacity,
+            "7 supernumerary against 6 seats"
+        );
         assert_eq!(usage.excess_over_regular, 0);
         assert_eq!(usage.excess_over_supernumerary, 1);
     }

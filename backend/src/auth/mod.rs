@@ -28,7 +28,11 @@ pub struct Claims {
     pub exp: i64,
 }
 
-pub fn encode_token(secret: &str, user: &AuthenticatedUser, ttl_minutes: i64) -> Result<String, AppError> {
+pub fn encode_token(
+    secret: &str,
+    user: &AuthenticatedUser,
+    ttl_minutes: i64,
+) -> Result<String, AppError> {
     let now = Utc::now().timestamp();
     let claims = Claims {
         sub: user.id.to_string(),

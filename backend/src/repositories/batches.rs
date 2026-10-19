@@ -61,7 +61,7 @@ pub async fn create(
     .bind(idempotency_key)
     .fetch_one(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(id)
 }
 
@@ -75,13 +75,10 @@ pub async fn get(pool: &PgPool, id: Uuid) -> AppResult<Option<BatchRow>> {
     .bind(id)
     .fetch_optional(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
-pub async fn find_by_idempotency_key(
-    pool: &PgPool,
-    key: &str,
-) -> AppResult<Option<BatchRow>> {
+pub async fn find_by_idempotency_key(pool: &PgPool, key: &str) -> AppResult<Option<BatchRow>> {
     sqlx::query_as::<_, BatchRow>(
         "SELECT id, institution_id, submitted_by, file_name, file_hash, schema_version, status,
                 row_count, accepted_count, warning_count, duplicate_count, rejected_count,
@@ -91,7 +88,7 @@ pub async fn find_by_idempotency_key(
     .bind(key)
     .fetch_optional(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))
+    .map_err(crate::error::AppError::internal)
 }
 
 pub async fn list(pool: &PgPool, scope: ScopeFilter) -> AppResult<Vec<BatchRow>> {
@@ -118,7 +115,7 @@ pub async fn list(pool: &PgPool, scope: ScopeFilter) -> AppResult<Vec<BatchRow>>
             .await
         }
     };
-    rows.map_err(|e| crate::error::AppError::internal(e))
+    rows.map_err(crate::error::AppError::internal)
 }
 
 pub async fn update_counts(pool: &PgPool, id: Uuid, counts: &BatchCounts) -> AppResult<()> {
@@ -137,7 +134,7 @@ pub async fn update_counts(pool: &PgPool, id: Uuid, counts: &BatchCounts) -> App
     .bind(counts.needs_review)
     .execute(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(())
 }
 
@@ -152,6 +149,6 @@ pub async fn set_status(pool: &PgPool, id: Uuid, status: &str) -> AppResult<()> 
     .bind(status)
     .execute(pool)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
     Ok(())
 }

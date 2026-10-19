@@ -1,6 +1,8 @@
 use crate::domain::validation::{CandidateRow, RuleCode};
 use crate::error::{AppError, AppResult};
+use sqlx::PgPool;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 /// The versioned CSV template contract.
 ///
@@ -34,8 +36,12 @@ pub fn template_bytes() -> String {
 /// returned as errors. Row level problems are **not** detected here: they are
 /// the job of the validation service.
 pub fn parse_csv(bytes: &[u8], max_rows: usize) -> AppResult<Vec<CandidateRow>> {
-    let text = std::str::from_utf8(bytes)
-        .map_err(|_| AppError::row("FILE_ENCODING_INVALID", "The file must be UTF-8 encoded CSV."))?;
+    let text = std::str::from_utf8(bytes).map_err(|_| {
+        AppError::row(
+            "FILE_ENCODING_INVALID",
+            "The file must be UTF-8 encoded CSV.",
+        )
+    })?;
 
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
@@ -45,7 +51,12 @@ pub fn parse_csv(bytes: &[u8], max_rows: usize) -> AppResult<Vec<CandidateRow>> 
 
     let headers = reader
         .headers()
-        .map_err(|e| AppError::row("FILE_UNREADABLE", format!("Could not read the header row: {e}")))?
+        .map_err(|e| {
+            AppError::row(
+                "FILE_UNREADABLE",
+                format!("Could not read the header row: {e}"),
+            )
+        })?
         .clone();
 
     let index: HashMap<String, usize> = headers
@@ -100,7 +111,11 @@ pub fn parse_csv(bytes: &[u8], max_rows: usize) -> AppResult<Vec<CandidateRow>> 
             row_number: offset + 2,
             apaar_id: get("apaar_id"),
             institution_student_id: get("institution_student_id"),
-            full_name: if full_name.is_empty() { None } else { Some(full_name) },
+            full_name: if full_name.is_empty() {
+                None
+            } else {
+                Some(full_name)
+            },
             programme_code: get("programme_code"),
             academic_year: get("academic_year"),
             admission_date: get("admission_date"),
@@ -159,15 +174,17 @@ pub async fn commit_batch(
 ) -> AppResult<CommitSummary> {
     use crate::domain::admission::normalise_apaar_id;
 
-    let mut tx = pool.begin().await.map_err(|e| crate::error::AppError::internal(e))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(crate::error::AppError::internal)?;
 
-    let batch_status: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM submission_batches WHERE id = $1 FOR UPDATE",
-    )
-    .bind(batch_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    let batch_status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM submission_batches WHERE id = $1 FOR UPDATE")
+            .bind(batch_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(crate::error::AppError::internal)?;
 
     let Some(batch_status) = batch_status else {
         return Err(crate::error::AppError::not_found("Batch not found."));
@@ -183,7 +200,10 @@ pub async fn commit_batch(
     let mut summary = CommitSummary::default();
 
     for row in rows {
-        if !matches!(row.row_status.as_str(), "ACCEPTED" | "ACCEPTED_WITH_WARNING") {
+        if !matches!(
+            row.row_status.as_str(),
+            "ACCEPTED" | "ACCEPTED_WITH_WARNING"
+        ) {
             summary.skipped += 1;
             continue;
         }
@@ -207,7 +227,7 @@ pub async fn commit_batch(
         .bind(&last4)
         .fetch_one(&mut *tx)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))?;
+        .map_err(crate::error::AppError::internal)?;
 
         let identity_id: Uuid = sqlx::query_scalar(
             "INSERT INTO institution_students
@@ -224,7 +244,7 @@ pub async fn commit_batch(
         .bind(&row.full_name)
         .fetch_one(&mut *tx)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))?;
+        .map_err(crate::error::AppError::internal)?;
 
         let already_active: bool = sqlx::query_scalar(
             "SELECT EXISTS(
@@ -240,7 +260,7 @@ pub async fn commit_batch(
         .bind(&row.academic_year)
         .fetch_one(&mut *tx)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))?;
+        .map_err(crate::error::AppError::internal)?;
 
         if already_active {
             summary.skipped += 1;
@@ -259,7 +279,7 @@ pub async fn commit_batch(
             .bind(rule_version)
             .execute(&mut *tx)
             .await
-            .map_err(|e| crate::error::AppError::internal(e))?;
+            .map_err(crate::error::AppError::internal)?;
             continue;
         }
 
@@ -280,7 +300,7 @@ pub async fn commit_batch(
         .bind(batch_id)
         .execute(&mut *tx)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))?;
+        .map_err(crate::error::AppError::internal)?;
 
         summary.committed += 1;
     }
@@ -291,14 +311,14 @@ pub async fn commit_batch(
     .bind(batch_id)
     .execute(&mut *tx)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
 
     // The staging area is cleared once the records are persisted.
     sqlx::query("DELETE FROM staging_rows WHERE batch_id = $1")
         .bind(batch_id)
         .execute(&mut *tx)
         .await
-        .map_err(|e| crate::error::AppError::internal(e))?;
+        .map_err(crate::error::AppError::internal)?;
 
     sqlx::query(
         "INSERT INTO audit_events
@@ -312,9 +332,11 @@ pub async fn commit_batch(
     .bind(format!("committed {} records, skipped {}", summary.committed, summary.skipped))
     .execute(&mut *tx)
     .await
-    .map_err(|e| crate::error::AppError::internal(e))?;
+    .map_err(crate::error::AppError::internal)?;
 
-    tx.commit().await.map_err(|e| crate::error::AppError::internal(e))?;
+    tx.commit()
+        .await
+        .map_err(crate::error::AppError::internal)?;
 
     Ok(summary)
 }
@@ -341,10 +363,12 @@ mod tests {
 
     #[test]
     fn row_limit_is_enforced() {
-        let mut csv = String::from(TEMPLATE_COLUMNS.join(","));
+        let mut csv = TEMPLATE_COLUMNS.join(",");
         csv.push('\n');
         for i in 0..5 {
-            csv.push_str(&format!("APAAR-0000000{i},S{i},N,CSE-01,2026-27,2026-07-01,REGULAR,ACTIVE\n"));
+            csv.push_str(&format!(
+                "APAAR-0000000{i},S{i},N,CSE-01,2026-27,2026-07-01,REGULAR,ACTIVE\n"
+            ));
         }
         let err = parse_csv(csv.as_bytes(), 3).unwrap_err();
         assert!(matches!(err, AppError::Row { ref code, .. } if code == "ROW_LIMIT_EXCEEDED"));
