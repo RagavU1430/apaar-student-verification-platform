@@ -1,0 +1,11 @@
+{
+  "name": "apaar-student-data-platform-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Synthetic-data MVP for APAAR-linked student record ingestion and verification workflows.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}
